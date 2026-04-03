@@ -195,6 +195,7 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
             if (entry.flag==1&&entry.value<=alpha){return {entry.value,1ull,entry.depth_to_root,returned_pv};}
         }
         best_move=entry.best_move;
+        depth+=1;
     }
     auto legal_moves=pos.legal_moves(); //generate legal moves
     const bool check=pos.in_check();
@@ -230,13 +231,13 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
         scores[m]+=(depth>=2&&killer_moves[1][depth-2]==legal_moves[m])*80;
         scores[m]+=(depth>=2&&killer_moves[2][depth-2]==legal_moves[m])*80;
         //see
-        if (legal_moves[m].is_capturing()||legal_moves[m].is_promoting()) {
-            const int s=see(pos,legal_moves[m].to(),legal_moves[m]);
-            if (s<-100){scores[m]+=s-100000;}
-            else {scores[m]+=s+100000;}
-        }
+        // if (legal_moves[m].is_capturing()||legal_moves[m].is_promoting()) {
+        //     const int s=see(pos,legal_moves[m].to(),legal_moves[m]);
+        //     if (s<-100){scores[m]+=s-100000;}
+        //     else {scores[m]+=s+100000;}
+        // }
         if (legal_moves[m].is_capturing()) {
-            scores[m]=mat[legal_moves[m].captured()]*10-mat[legal_moves[m].piece()];
+            scores[m]=(mat[legal_moves[m].captured()]*10-mat[legal_moves[m].piece()])*100000;
         }
         scores[m]+=100000*(legal_moves[m].type()==libchess::MoveType::promo);
         scores[m]+=5000*(legal_moves[m].type()==libchess::MoveType::ksc);
@@ -274,9 +275,10 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
         }
         else {
             int lmr=0;
-            lmr=1+static_cast<int>((log(m)+log(depth)));
+            lmr=1+static_cast<int>((log(m)*log(depth)));
+            if (is_pv||legal_moves[m].is_capturing()||legal_moves[m].is_promoting()){lmr=1;}
             if (ext){lmr=0;}
-            child=negamax(pos,-(alpha+1),-alpha,depth-(1+lmr),depth_to_root+1,move_history,is_null,reductions+lmr);
+            child=negamax(pos,-(alpha+1),-alpha,depth-(1+lmr),depth_to_root+1,move_history,is_null,reductions);
             if (-child.value>alpha&&-child.value<beta) {
                 child=negamax(pos,-beta,-alpha,depth-1+ext,depth_to_root+1,move_history,is_null,reductions);
             }
