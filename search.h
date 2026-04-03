@@ -286,13 +286,13 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
         move_history.push_back(legal_moves[m]);
         //pvs
         int ext=0;
-        // if (legal_moves[m].is_promoting()||legal_moves[m].piece()==0||pos.in_check()||check||type==4||type==5) {
-        //     ext+=1+reductions;
-        //     reductions=0;
-        // }
+
         //extension for:
         //being in check
-        if (check) {
+        //pv and castling
+        //pv and promoting
+        libchess::MoveType type=legal_moves[m].type();
+        if (check||(is_pv&&(type==4||type==5||legal_moves[m].is_promoting()))) {
             ext=1;
         }
         if (m==0) {
@@ -307,18 +307,6 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
             if (-child.value>alpha&&-child.value<beta) {
                 child=negamax(pos,-beta,-alpha,depth-1+ext,depth_to_root+1,move_history,is_null,reductions);
             }
-
-            // if (
-            //     depth<depth_to_root&&
-            //     scores[m]<-100000&&
-            //     !legal_moves[m].is_promoting()&&
-            //     !check&&
-            //     !pos.in_check()&&
-            //     !is_pv) {
-            //     pos.undomove();
-            //     move_history.pop_back();
-            //     break;
-            // }
         }
         nodes+=child.nodes;
         if (-child.value>value) {
