@@ -1,0 +1,12 @@
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/libchess_obj.dir
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/libchess_static.dir
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/libchess_shared.dir
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/perft.dir
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/ttperft.dir
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/split.dir
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/suite.dir
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/ttsuite.dir
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/suite960.dir
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/main.dir
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/edit_cache.dir
+C:/Users/bryan/CLionProjects/ChessBot/cmake-build-debug/CMakeFiles/rebuild_cache.dir

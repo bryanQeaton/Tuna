@@ -1,0 +1,141 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Release-d0094a50bb2071803777.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.29"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8,
+						9
+					]
+				}
+			],
+			"name" : "Release",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "ChessBot",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3,
+						4,
+						5,
+						6,
+						7,
+						8,
+						9
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "libchess_obj::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-libchess_obj-Release-2aa100ef386fc06442bf.json",
+					"name" : "libchess_obj",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "libchess_shared::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-libchess_shared-Release-444e8bcb95b2e6825fe0.json",
+					"name" : "libchess_shared",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "libchess_static::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-libchess_static-Release-3f11484dfe13e02b3521.json",
+					"name" : "libchess_static",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "main::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-main-Release-2d0bc5ab93674025d7eb.json",
+					"name" : "main",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "perft::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-perft-Release-04f335c955426e3b229c.json",
+					"name" : "perft",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "split::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-split-Release-f32d98332a4177d45b4c.json",
+					"name" : "split",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "suite::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-suite-Release-b1e17fdd971600eb5c32.json",
+					"name" : "suite",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "suite960::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-suite960-Release-295c2029d7608edf9626.json",
+					"name" : "suite960",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ttperft::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ttperft-Release-bf176a559efc74eec338.json",
+					"name" : "ttperft",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "ttsuite::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-ttsuite-Release-deeb33880360aa2fd428.json",
+					"name" : "ttsuite",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "C:/Users/bryan/CLionProjects/ChessBot/cmake-build-release",
+		"source" : "C:/Users/bryan/CLionProjects/ChessBot"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 8
+	}
+}
