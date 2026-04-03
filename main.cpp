@@ -95,7 +95,7 @@ void move_ordering_testing() {
         auto t0=std::chrono::high_resolution_clock::now();
         uint64_t last_nodes=mo_nodes;
         std::vector<libchess::Move> movelist;
-        const auto ret=negamax(pos,-BOUND,BOUND,5,0,movelist,false,0);
+        const auto ret=negamax(pos,-BOUND,BOUND,3,0,movelist,false,0);
         std::cout<<"nodes: "<<mo_nodes-last_nodes<<" | "<<test_fen<<" | eval:"<<ret.value<<"\n";
         auto t1=std::chrono::high_resolution_clock::now();
         ms+=std::chrono::duration_cast<std::chrono::milliseconds>(t1-t0).count();
@@ -141,7 +141,7 @@ inline int tester(libchess::Position &pos, int alpha, const int beta,const int d
 
 int main() {
     pos=libchess::Position("startpos");
-    //auto result=root(pos,10000,MAX_DEPTH,true);
+    //auto result=root(pos,1000,MAX_DEPTH,true);
 
 
 

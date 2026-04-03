@@ -80,6 +80,10 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
         //if (alpha>=beta){return {entry.value,1ull,entry.depth_to_root,move_history};}
         best_move=entry.best_move;
     }
+    //mate distance pruning
+    alpha=std::max(-BOUND+depth_to_root, alpha);
+    beta=std::min(BOUND-depth_to_root-1,beta);
+    if (alpha>=beta){return {alpha,1ull,depth_to_root,move_history};}
     //standing pat
     int value=-BOUND;
     std::vector<libchess::Move>legal_moves;
@@ -197,6 +201,27 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
         best_move=entry.best_move;
         depth+=1;
     }
+    //mate distance pruning
+    alpha=std::max(-BOUND+depth_to_root, alpha);
+    beta=std::min(BOUND-depth_to_root-1,beta);
+    if (alpha>=beta){return {alpha,1ull,depth_to_root,move_history};}
+    //try best_move
+    if (best_move!=libchess::Move()) {
+        pos.makemove(best_move);
+        move_history.push_back(best_move);
+        auto child=negamax(pos,-beta,-alpha,depth-1,depth_to_root+1,move_history,false,reductions);
+        pos.undomove();
+        move_history.pop_back();
+        if (-child.value>alpha) {
+            if (-child.value>=beta) {
+                return {-child.value,child.nodes,child.depth,child.pv};
+            }
+        }
+
+    }
+
+
+
     auto legal_moves=pos.legal_moves(); //generate legal moves
     const bool check=pos.in_check();
     if (legal_moves.empty()) { //if no moves then
