@@ -47,10 +47,10 @@ inline void watch_input() {
             else if (line=="ucinewgame") {
                 // reset TT or other state if needed
                 tt.clear();
-                // for (int n=0;n<3;n++) {for (int m=0;m<MAX_DEPTH;m++) {killer_moves[n][m]=libchess::Move();}}
-                // for (int n=0;n<6;n++) {for (int m=0;m<64;m++) {countermove_history[n][m]=libchess::Move();}}
-                // for (int n=0;n<6;n++) {for (int m=0;m<64;m++) {followup_history[n][m]=libchess::Move();}}
-                for (int n=0;n<64;n++) {for (int m=0;m<64;m++) {history[n][m]*=.9;}}
+                for (int n=0;n<3;n++) {for (int m=0;m<MAX_DEPTH;m++) {killer_moves[n][m]=libchess::Move();}}
+                for (int n=0;n<6;n++) {for (int m=0;m<64;m++) {countermove_history[n][m]=libchess::Move();}}
+                for (int n=0;n<6;n++) {for (int m=0;m<64;m++) {followup_history[n][m]=libchess::Move();}}
+                for (int n=0;n<64;n++) {for (int m=0;m<64;m++) {history[n][m]=0;}}
             }
             else if (line=="isready") {
                 std::cout<<"readyok\n"<<std::flush;

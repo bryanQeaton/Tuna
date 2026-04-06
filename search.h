@@ -18,6 +18,7 @@ inline float beta_cutoff_count=0.f;
 inline libchess::Move killer_moves[3][MAX_DEPTH];
 inline libchess::Move countermove_history[6][64];
 inline libchess::Move followup_history[6][64];
+inline int capture_history[6][64];
 inline int history[64][64]={};
 inline TT tt(HASH_SIZE);
 //static exchange evaluator
@@ -205,11 +206,28 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
     alpha=std::max(-BOUND+depth_to_root, alpha);
     beta=std::min(BOUND-depth_to_root-1,beta);
     if (alpha>=beta){return {alpha,1ull,depth_to_root,move_history};}
+    // //rfp
+    // if (!is_pv&&!pos.in_check()&&(best_move!=libchess::Move()||best_move.is_capturing())&&eval(pos)>=beta+150*depth) {
+    //     //return {eval(pos),1ull,depth_to_root,move_history};
+    //     const nodeData node=quiescence(pos,alpha,beta,depth_to_root,move_history);
+    //     return {node.value,node.nodes,node.depth,node.pv};
+    // }
+    // //nmp
+    // if (!is_pv&&!pos.in_check()&&!is_null&&eval(pos)>=beta&&phase(pos)>.2) {
+    //     pos.makenull();
+    //     move_history.emplace_back();
+    //     auto child=negamax(pos,-beta,-beta+1,depth-(depth/4)-1,depth_to_root+1,move_history,true,reductions);
+    //     pos.undonull();
+    //     move_history.pop_back();
+    //     if (-child.value>=beta){return {-child.value,1ull,depth_to_root,move_history};}
+    // }
+
+
     //try best_move
     if (best_move!=libchess::Move()) {
         pos.makemove(best_move);
         move_history.push_back(best_move);
-        auto child=negamax(pos,-beta,-alpha,depth-1,depth_to_root+1,move_history,false,reductions);
+        auto child=negamax(pos,-beta,-alpha,depth-1,depth_to_root+1,move_history,is_null,reductions);
         pos.undomove();
         move_history.pop_back();
         if (-child.value>alpha) {
@@ -217,10 +235,7 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
                 return {-child.value,child.nodes,child.depth,child.pv};
             }
         }
-
     }
-
-
 
     auto legal_moves=pos.legal_moves(); //generate legal moves
     const bool check=pos.in_check();
@@ -248,19 +263,63 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
                 scores[m]+=(followup_history[move_history[move_history.size()-2].piece()][sqr_idx(move_history[move_history.size()-2].to())]==legal_moves[m])*1000;
             }
         }
+        //pawns
+        if (legal_moves[m].piece()==0&&legal_moves[m].to().rank()>=4&&pos.turn()==libchess::White) {
+            auto mask= libchess::Bitboard(legal_moves[m].to().north());
+            mask|=mask.north();
+            mask|=mask.north();
+            mask|=mask.north();
+            mask|=mask.north();
+            mask|=mask.north();
+            scores[m]+=100;
+            if (!(mask&pos.occupied())) {
+                auto promo_sqr=libchess::Bitboard(legal_moves[m].to().north());
+                auto last=promo_sqr;
+                while (promo_sqr) {
+                    last=promo_sqr;
+                    promo_sqr=promo_sqr.north();
+                }
+                promo_sqr=last;
+                const float moves_to_promo=distance(legal_moves[m].to(),promo_sqr.lsb());
+                const float moves_to_capture=distance(promo_sqr.lsb(),pos.king_position(libchess::Black));
+                if (moves_to_promo<moves_to_capture){scores[m]+=mg_value[4]*(1.f/moves_to_promo)*.25;}
+            }
+        }
+        if (legal_moves[m].piece()==0&&legal_moves[m].to().rank()>=4&&pos.turn()==libchess::Black) {
+            auto mask= libchess::Bitboard(legal_moves[m].to().south());
+            mask|=mask.south();
+            mask|=mask.south();
+            mask|=mask.south();
+            mask|=mask.south();
+            mask|=mask.south();
+            scores[m]+=100;
+            if (!(mask&pos.occupied())) {
+                auto promo_sqr=libchess::Bitboard(legal_moves[m].to().south());
+                auto last=promo_sqr;
+                while (promo_sqr) {
+                    last=promo_sqr;
+                    promo_sqr=promo_sqr.south();
+                }
+                promo_sqr=last;
+                const float moves_to_promo=distance(legal_moves[m].to(),promo_sqr.lsb());
+                const float moves_to_capture=distance(promo_sqr.lsb(),pos.king_position(libchess::White));
+                if (moves_to_promo<moves_to_capture){scores[m]+=mg_value[4]*(1.f/moves_to_promo)*.25;}
+            }
+        }
+        //psqt
+        int from=sqr_idx(legal_moves[m].from());
+        int to=sqr_idx(legal_moves[m].to());
+        if (pos.turn()==libchess::Black) {
+            from=flip(from);
+            to=flip(to);
+        }
+        scores[m]+=mg_tables[legal_moves[m].piece()][to]-mg_tables[legal_moves[m].piece()][from]*phase(pos)*2;
+        scores[m]+=eg_tables[legal_moves[m].piece()][to]-eg_tables[legal_moves[m].piece()][from]*(1-phase(pos))*2;
         //killers
-        scores[m]+=(killer_moves[0][depth_to_root]==legal_moves[m])*100;
-        scores[m]+=(killer_moves[1][depth_to_root]==legal_moves[m])*100;
-        scores[m]+=(killer_moves[2][depth_to_root]==legal_moves[m])*100;
-        scores[m]+=(depth>=2&&killer_moves[0][depth-2]==legal_moves[m])*80;
-        scores[m]+=(depth>=2&&killer_moves[1][depth-2]==legal_moves[m])*80;
-        scores[m]+=(depth>=2&&killer_moves[2][depth-2]==legal_moves[m])*80;
-        //see
-        // if (legal_moves[m].is_capturing()||legal_moves[m].is_promoting()) {
-        //     const int s=see(pos,legal_moves[m].to(),legal_moves[m]);
-        //     if (s<-100){scores[m]+=s-100000;}
-        //     else {scores[m]+=s+100000;}
-        // }
+        scores[m]+=(killer_moves[0][depth_to_root]==legal_moves[m])*500;
+        scores[m]+=(killer_moves[1][depth_to_root]==legal_moves[m])*500;
+        scores[m]+=(killer_moves[2][depth_to_root]==legal_moves[m])*500;
+        //mvv-lva
         if (legal_moves[m].is_capturing()) {
             scores[m]=(mat[legal_moves[m].captured()]*10-mat[legal_moves[m].piece()])*100000;
         }
@@ -318,6 +377,7 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
         move_history.pop_back();
         const bool is_capture=legal_moves[m].is_capturing();
         if (value>alpha) { //a-b
+            if (legal_moves[m].is_capturing()){capture_history[legal_moves[m].piece()][sqr_idx(legal_moves[m].to())]=-child.value/100;}
             best_move=legal_moves[m];
             if (value>=beta) { //beta cutoff
                 beta_cutoff_ratio+=(static_cast<float>(m)/static_cast<float>(legal_moves.size()));

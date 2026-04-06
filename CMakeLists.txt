@@ -51,6 +51,7 @@ add_library(
         root.h
         search.h
         tt.h
+        eval_tuner.h
 )
 # Add the static library
 add_library(

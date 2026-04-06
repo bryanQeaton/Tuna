@@ -1,5 +1,5 @@
 # ninja log v6
-18	1117	7965020317925175	build.ninja	508c385cb0780ece
+18	1117	7970323178023114	build.ninja	508c385cb0780ece
 5382	8431	7578263378043169	CMakeFiles/libchess_obj.dir/src/valid.cpp.obj	34159363d0984d69
 4562	7635	7578263369844297	CMakeFiles/libchess_obj.dir/src/movegen.cpp.obj	e40bf39c4dba3740
 49	4581	7578263324712643	CMakeFiles/libchess_obj.dir/src/checkers.cpp.obj	b5fdf32a7d2c874f

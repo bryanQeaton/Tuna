@@ -14,6 +14,8 @@ inline float phase(const libchess::Position &pos) {
     return static_cast<float>(occ.count())/14.f;
 }
 
+inline float distance(const libchess::Square a,const libchess::Square b) {return std::max(abs(a.file()-b.file()),abs(a.rank()-b.rank()));}
+
 inline int eval(const libchess::Position &pos) {
     float value=0.f;
     const float ph=phase(pos);
@@ -54,6 +56,20 @@ inline int eval(const libchess::Position &pos) {
     const auto b_rooks=pos.pieces(libchess::Black,libchess::Rook);
     const auto b_queens=pos.pieces(libchess::Black,libchess::Queen);
     const auto b_occ=b_pawns|b_knights|b_bishops|b_rooks|b_queens|pos.king_position(libchess::Black);
+    libchess::Bitboard w_greater[5]={
+        w_knights|w_bishops|w_rooks|w_queens,
+        w_rooks|w_queens,
+        w_rooks|w_queens,
+        w_queens,
+        libchess::Bitboard(0ull)
+    };
+    libchess::Bitboard b_greater[5]={
+        b_knights|b_bishops|b_rooks|b_queens,
+        b_rooks|b_queens,
+        b_rooks|b_queens,
+        b_queens,
+        libchess::Bitboard(0ull)
+    };
     libchess::Bitboard w_knight_att;
     libchess::Bitboard w_bishop_att;
     libchess::Bitboard w_rook_att;
@@ -66,153 +82,190 @@ inline int eval(const libchess::Position &pos) {
     w_sqrs_attacked|=w_pawns.north().east();
     w_sqrs_attacked|=w_pawns.north().west();
     libchess::Bitboard w_pawn_att=w_sqrs_attacked;
-    for (const auto &fr:w_knights) {
-        w_knight_att|=libchess::movegen::knight_moves(fr);
-        w_sqrs_attacked|=w_knight_att;
-    }
-    for (const auto &fr:w_bishops) {
-        w_bishop_att|=libchess::movegen::bishop_moves(fr,~pos.empty());
-        w_sqrs_attacked|=w_bishop_att;
-    }
-    for (const auto &fr:w_rooks) {
-        w_rook_att|=libchess::movegen::rook_moves(fr,~pos.empty());
-        w_sqrs_attacked|=w_rook_att;
-    }
-    for (const auto &fr:w_queens) {
-        w_queen_att|=libchess::movegen::queen_moves(fr,~pos.empty());
-        w_sqrs_attacked|=w_queen_att;
-    }
     w_sqrs_attacked|=libchess::movegen::king_moves(pos.king_position(libchess::White));
     libchess::Bitboard b_sqrs_attacked;
     b_sqrs_attacked|=b_pawns.south().east();
     b_sqrs_attacked|=b_pawns.south().west();
     libchess::Bitboard b_pawn_att=b_sqrs_attacked;
+    b_sqrs_attacked|=libchess::movegen::king_moves(pos.king_position(libchess::Black));
+    for (const auto &fr:w_knights) {
+        libchess::Bitboard temp=libchess::movegen::knight_moves(fr);
+        w_knight_att|=temp;
+        w_sqrs_attacked|=w_knight_att;
+    }
+    for (const auto &fr:w_bishops) {
+        libchess::Bitboard temp=libchess::movegen::bishop_moves(fr,~pos.empty());
+        w_bishop_att|=temp;
+        w_sqrs_attacked|=w_bishop_att;
+    }
+    for (const auto &fr:w_rooks) {
+        libchess::Bitboard temp=libchess::movegen::rook_moves(fr,~pos.empty());
+        w_rook_att|=temp;
+        w_sqrs_attacked|=w_rook_att;
+    }
     for (const auto &fr:b_knights) {
-        b_knight_att|=libchess::movegen::knight_moves(fr);
+        libchess::Bitboard temp=libchess::movegen::knight_moves(fr);
+        b_knight_att|=temp;
         b_sqrs_attacked|=b_knight_att;
     }
     for (const auto &fr:b_bishops) {
-        b_bishop_att|=libchess::movegen::bishop_moves(fr,~pos.empty());
+        libchess::Bitboard temp=libchess::movegen::bishop_moves(fr,~pos.empty());
+        b_bishop_att|=temp;
         b_sqrs_attacked|=b_bishop_att;
     }
     for (const auto &fr:b_rooks) {
-        b_rook_att|=libchess::movegen::rook_moves(fr,~pos.empty());
+        libchess::Bitboard temp=libchess::movegen::rook_moves(fr,~pos.empty());
+        b_rook_att|=temp;
         b_sqrs_attacked|=b_rook_att;
     }
     for (const auto &fr:b_queens) {
         b_queen_att|=libchess::movegen::queen_moves(fr,~pos.empty());
         b_sqrs_attacked|=b_queen_att;
     }
-    b_sqrs_attacked|=libchess::movegen::king_moves(pos.king_position(libchess::Black));
     //bonus for mobility -not including king or pawns:
     float mobility=0.f;
-    mobility+=static_cast<float>((w_knight_att&~b_sqrs_attacked&~w_occ).count())*mg_value[1]/100;
-    mobility+=static_cast<float>((w_bishop_att&~b_sqrs_attacked&~w_occ).count())*mg_value[2]/100;
-    mobility+=static_cast<float>((w_rook_att&~b_sqrs_attacked&~w_occ).count())*mg_value[3]/100;
-    mobility+=static_cast<float>((w_queen_att&~b_sqrs_attacked&~w_occ).count())*mg_value[4]/100;
-    mobility-=static_cast<float>((b_knight_att&~w_sqrs_attacked&~b_occ).count())*mg_value[1]/100;
-    mobility-=static_cast<float>((b_bishop_att&~w_sqrs_attacked&~b_occ).count())*mg_value[2]/100;
-    mobility-=static_cast<float>((b_rook_att&~w_sqrs_attacked&~b_occ).count())*mg_value[3]/100;
-    mobility-=static_cast<float>((b_queen_att&~w_sqrs_attacked&~b_occ).count())*mg_value[4]/100;
-    //malus for hanging pieces:
-    float hanging=0.f;
-    hanging-=static_cast<float>((w_pawns&b_sqrs_attacked&~w_sqrs_attacked).count())*mg_value[0]/10;
-    hanging-=static_cast<float>((w_knights&b_sqrs_attacked&~w_sqrs_attacked).count())*mg_value[1]/10;
-    hanging-=static_cast<float>((w_bishops&b_sqrs_attacked&~w_sqrs_attacked).count())*mg_value[2]/10;
-    hanging-=static_cast<float>((w_rooks&b_sqrs_attacked&~w_sqrs_attacked).count())*mg_value[3]/10;
-    hanging-=static_cast<float>((w_queens&b_sqrs_attacked&~w_sqrs_attacked).count())*mg_value[4]/10;
-    hanging+=static_cast<float>((b_pawns&w_sqrs_attacked&~b_sqrs_attacked).count())*mg_value[0]/10;
-    hanging+=static_cast<float>((b_knights&w_sqrs_attacked&~b_sqrs_attacked).count())*mg_value[1]/10;
-    hanging+=static_cast<float>((b_bishops&w_sqrs_attacked&~b_sqrs_attacked).count())*mg_value[2]/10;
-    hanging+=static_cast<float>((b_rooks&w_sqrs_attacked&~b_sqrs_attacked).count())*mg_value[3]/10;
-    hanging+=static_cast<float>((b_queens&w_sqrs_attacked&~b_sqrs_attacked).count())*mg_value[4]/10;
-    auto w_king_adj=libchess::Bitboard(pos.king_position(libchess::White)).adjacent();
-    auto b_king_adj=libchess::Bitboard(pos.king_position(libchess::Black)).adjacent();
-    //bonus for attacking the enemy king:
-    float king_safety=0.f;
-    king_safety+=expf(static_cast<float>((w_sqrs_attacked&b_king_adj).count())/static_cast<float>(b_king_adj.count()))*8-8;
-    king_safety-=expf(static_cast<float>((b_sqrs_attacked&w_king_adj).count())/static_cast<float>(w_king_adj.count()))*8-8;
-    king_safety+=expf(static_cast<float>((w_knight_att&b_king_adj).count())/static_cast<float>(b_king_adj.count()))*3-3;
-    king_safety-=expf(static_cast<float>((b_knight_att&w_king_adj).count())/static_cast<float>(w_king_adj.count()))*3-3;
-    king_safety+=expf(static_cast<float>((w_bishop_att&b_king_adj).count())/static_cast<float>(b_king_adj.count()))*3-3;
-    king_safety-=expf(static_cast<float>((b_bishop_att&w_king_adj).count())/static_cast<float>(w_king_adj.count()))*3-3;
-    king_safety+=expf(static_cast<float>((w_rook_att&b_king_adj).count())/static_cast<float>(b_king_adj.count()))*5-5;
-    king_safety-=expf(static_cast<float>((b_rook_att&w_king_adj).count())/static_cast<float>(w_king_adj.count()))*5-5;
-    king_safety+=expf(static_cast<float>((w_queen_att&b_king_adj).count())/static_cast<float>(b_king_adj.count()))*10-10;
-    king_safety-=expf(static_cast<float>((b_queen_att&w_king_adj).count())/static_cast<float>(w_king_adj.count()))*10-10;
-    float tempo=45*ph;
-    //rooks and queens on the 7th rank
-    float seventh=0.f;
-    seventh+=(w_rooks&libchess::bitboards::ranks[6]).count()*50;
-    seventh+=(w_queens&libchess::bitboards::ranks[6]).count()*65;
-    seventh-=(b_rooks&libchess::bitboards::ranks[1]).count()*50;
-    seventh-=(b_queens&libchess::bitboards::ranks[1]).count()*65;
-    //bonus for protected pieces
-    float protect=0.f;
-    protect+=(w_pawn_att&w_pawns).count()*1.f;
-    protect+=(w_pawn_att&w_knights).count()*3.2f;
-    protect+=(w_pawn_att&w_bishops).count()*3.3f;
-    protect+=(w_pawn_att&w_rooks).count()*1.f;
-    protect+=(w_pawn_att&w_queens).count()*1.f;
-    protect+=(w_knight_att&w_pawns).count()*1.f;
-    protect+=(w_knight_att&w_knights).count()*3.2f;
-    protect+=(w_knight_att&w_bishops).count()*3.3f;
-    protect+=(w_knight_att&w_rooks).count()*1.f;
-    protect+=(w_knight_att&w_queens).count()*1.f;
-    protect+=(w_bishop_att&w_pawns).count()*1.f;
-    protect+=(w_bishop_att&w_knights).count()*3.2f;
-    protect+=(w_bishop_att&w_bishops).count()*3.3f;
-    protect+=(w_bishop_att&w_rooks).count()*1.f;
-    protect+=(w_bishop_att&w_queens).count()*1.f;
-    protect+=(w_rook_att&w_pawns).count()*1.f;
-    protect+=(w_rook_att&w_knights).count()*3.2f;
-    protect+=(w_rook_att&w_bishops).count()*3.3f;
-    protect+=(w_rook_att&w_rooks).count()*5.f;
-    protect+=(w_rook_att&w_queens).count()*9.f;
-    protect+=(w_queen_att&w_pawns).count()*1.f;
-    protect+=(w_queen_att&w_knights).count()*3.2f;
-    protect+=(w_queen_att&w_bishops).count()*3.3f;
-    protect+=(w_queen_att&w_rooks).count()*5.f;
-    protect+=(w_queen_att&w_queens).count()*9.f;
-    protect-=(b_pawn_att&b_pawns).count()*1.f;
-    protect-=(b_pawn_att&b_knights).count()*3.2f;
-    protect-=(b_pawn_att&b_bishops).count()*3.3f;
-    protect-=(b_pawn_att&b_rooks).count()*1.f;
-    protect-=(b_pawn_att&b_queens).count()*1.f;
-    protect-=(b_knight_att&b_pawns).count()*1.f;
-    protect-=(b_knight_att&b_knights).count()*3.2f;
-    protect-=(b_knight_att&b_bishops).count()*3.3f;
-    protect-=(b_knight_att&b_rooks).count()*1.f;
-    protect-=(b_knight_att&b_queens).count()*1.f;
-    protect-=(b_bishop_att&b_pawns).count()*1.f;
-    protect-=(b_bishop_att&b_knights).count()*3.2f;
-    protect-=(b_bishop_att&b_bishops).count()*3.3f;
-    protect-=(b_bishop_att&b_rooks).count()*1.f;
-    protect-=(b_bishop_att&b_queens).count()*1.f;
-    protect-=(b_rook_att&b_pawns).count()*1.f;
-    protect-=(b_rook_att&b_knights).count()*3.2f;
-    protect-=(b_rook_att&b_bishops).count()*3.3f;
-    protect-=(b_rook_att&b_rooks).count()*5.f;
-    protect-=(b_rook_att&b_queens).count()*9.f;
-    protect-=(b_queen_att&b_pawns).count()*1.f;
-    protect-=(b_queen_att&b_knights).count()*3.2f;
-    protect-=(b_queen_att&b_bishops).count()*3.3f;
-    protect-=(b_queen_att&b_rooks).count()*5.f;
-    protect-=(b_queen_att&b_queens).count()*9.f;
+    libchess::Bitboard w_att_by_lesser[6]={libchess::Bitboard(0),b_pawn_att,b_pawn_att,(b_pawn_att|b_knight_att|b_bishop_att),(b_pawn_att|b_knight_att|b_bishop_att|b_rook_att),libchess::Bitboard(0)};
+    libchess::Bitboard b_att_by_lesser[6]={libchess::Bitboard(0),w_pawn_att,w_pawn_att,(w_pawn_att|w_knight_att|w_bishop_att),(w_pawn_att|w_knight_att|w_bishop_att|w_rook_att),libchess::Bitboard(0)};
+    mobility+=knight_mobility[std::max((w_knight_att&~w_att_by_lesser[1]&~w_occ).count(),8)];
+    mobility+=bishop_mobility[std::max((w_bishop_att&~w_att_by_lesser[1]&~w_occ).count(),26)];
+    mobility+=rook_mobility[std::max((w_rook_att&~w_att_by_lesser[1]&~w_occ).count(),28)];
+    mobility+=queen_mobility[std::max((w_queen_att&~w_att_by_lesser[1]&~w_occ).count(),27)];
+    mobility-=knight_mobility[std::max((b_knight_att&~b_att_by_lesser[1]&~b_occ).count(),8)];
+    mobility-=bishop_mobility[std::max((b_bishop_att&~b_att_by_lesser[1]&~b_occ).count(),26)];
+    mobility-=rook_mobility[std::max((b_rook_att&~b_att_by_lesser[1]&~b_occ).count(),28)];
+    mobility-=queen_mobility[std::max((b_queen_att&~b_att_by_lesser[1]&~b_occ).count(),27)];
+    float bishop_pairs=0.f;
+    if (w_bishops.count()>=2){bishop_pairs+=50.f;}
+    if (b_bishops.count()>=2){bishop_pairs-=50.f;}
+    float outposts=0.f;
+    auto potential_outposts=w_pawn_att;
+    while (potential_outposts) {
+        libchess::Square s=potential_outposts.lsb();
+        auto sqr=libchess::Bitboard(s);
+        potential_outposts^=sqr;
+        if (s.rank()<4||(sqr&b_occ)){continue;} //on the opponents side and not occupied by the opponent
+        libchess::Bitboard mask=sqr.north().east()|sqr.north().west();
+        mask|=mask.north();
+        mask|=mask.north();
+        mask|=mask.north();
+        if (mask&b_pawns){continue;} //not defendable by pawns
+        outposts+=10.f;
+        if (sqr&w_knights){outposts+=145.f;}
+        if (sqr&w_bishops){outposts+=145.f;}
+        if (sqr&w_rooks){outposts+=45.f;}
+        if (sqr&w_queens){outposts+=45.f;}
+    }
+    potential_outposts=b_pawn_att;
+    while (potential_outposts) {
+        libchess::Square s=potential_outposts.lsb();
+        auto sqr=libchess::Bitboard(s);
+        potential_outposts^=sqr;
+        if (s.rank()>=4||(sqr&b_occ)){continue;} //on the opponents side and not occupied by the opponent
+        libchess::Bitboard mask=sqr.north().east()|sqr.north().west();
+        mask|=mask.north();
+        mask|=mask.north();
+        mask|=mask.north();
+        if (mask&w_pawns){continue;} //not defendable by pawns
+        outposts-=10.f;
+        if (sqr&b_knights){outposts-=145.f;}
+        if (sqr&b_bishops){outposts-=145.f;}
+        if (sqr&b_rooks){outposts-=45.f;}
+        if (sqr&b_queens){outposts-=45.f;}
+    }
+    float rook_on_open_files=0.f;
+    libchess::Bitboard open_files;
+    libchess::Bitboard w_semi_open_files;
+    libchess::Bitboard b_semi_open_files;
+    for (auto file:libchess::bitboards::files) {
+        if (!(file&(w_pawns|b_pawns))){open_files|=file;}
+        if (file&b_pawns&&!(file&w_pawns)) {
+            w_semi_open_files|=file;
+        }
+        if (file&w_pawns&&!(file&b_pawns)) {
+            b_semi_open_files|=file;
+        }
+    }
+    if ((w_rook_att&open_files).count()>=3){rook_on_open_files+=80.f;}
+    if ((w_rook_att&w_semi_open_files).count()>=3){rook_on_open_files+=50.f;}
+    if ((b_rook_att&open_files).count()>=3){rook_on_open_files-=80.f;}
+    if ((b_rook_att&b_semi_open_files).count()>=3){rook_on_open_files-=50.f;}
+    float unstoppable_pawn=0.f;
+    auto w_passed=pos.passed_pawns(libchess::White);
+    auto b_passed=pos.passed_pawns(libchess::Black);
+    if (!b_knights&&!b_bishops&&!b_rooks&&!b_queens&&w_passed) {
+        auto temp=w_passed;
+        while (temp) {
+            libchess::Square s=temp.lsb();
+            auto sqr=libchess::Bitboard(s);
+            temp^=sqr;
+            auto mask=sqr.north();
+            mask|=mask.north();
+            mask|=mask.north();
+            mask|=mask.north();
+            mask|=mask.north();
+            mask|=mask.north();
+            if (mask&w_occ){continue;}
+            auto promo_sqr=sqr.north();
+            auto last=promo_sqr;
+            while (promo_sqr) {
+                last=promo_sqr;
+                promo_sqr=promo_sqr.north();
+            }
+            promo_sqr=last;
+            float moves_to_promo=distance(s,promo_sqr.lsb());
+            float moves_to_capture=distance(promo_sqr.lsb(),pos.king_position(libchess::Black));
+            if (moves_to_promo<moves_to_capture){unstoppable_pawn+=mg_value[4]*(1.f/moves_to_promo);}
+        }
+    }
+    if (!w_knights&&!w_bishops&&!w_rooks&&!w_queens&&b_passed) {
+        auto temp=b_passed;
+        while (temp) {
+            libchess::Square s=temp.lsb();
+            auto sqr=libchess::Bitboard(s);
+            temp^=sqr;
+            auto mask=sqr.south();
+            mask|=mask.south();
+            mask|=mask.south();
+            mask|=mask.south();
+            mask|=mask.south();
+            mask|=mask.south();
+            if (mask&b_occ){continue;}
+            auto promo_sqr=sqr.south();
+            auto last=promo_sqr;
+            while (promo_sqr) {
+                last=promo_sqr;
+                promo_sqr=promo_sqr.south();
+            }
+            promo_sqr=last;
+            float moves_to_promo=distance(s,promo_sqr.lsb());
+            float moves_to_capture=distance(promo_sqr.lsb(),pos.king_position(libchess::White));
+            if (moves_to_promo<moves_to_capture){unstoppable_pawn-=mg_value[4]*(1.f/moves_to_promo);}
+        }
+    }
+    float king_attack=0.f;
+    auto w_king_area_immediate=libchess::Bitboard(pos.king_position(libchess::White)).adjacent();
+    auto b_king_area_immediate=libchess::Bitboard(pos.king_position(libchess::Black)).adjacent();
+    float w_king_immediate_attack=static_cast<float>((b_king_area_immediate&(w_sqrs_attacked|w_occ)).count())/static_cast<float>(b_king_area_immediate.count());
+    float b_king_immediate_attack=static_cast<float>((w_king_area_immediate&(b_sqrs_attacked|b_occ)).count())/static_cast<float>(w_king_area_immediate.count());
+    king_attack+=expf(w_king_immediate_attack*3)*10;
+    king_attack-=expf(b_king_immediate_attack*3)*10;
+    float passed_pawn=0.f;
+    passed_pawn+=pos.passed_pawns(libchess::White).count()*50.f;
+    passed_pawn-=pos.passed_pawns(libchess::Black).count()*50.f;
 
-    //entropy
+    
+    value+=material*1.0f;
+    value+=psqt*0.5f;
+    value+=mobility*0.5f;
+    value+=bishop_pairs*1.8f;
+    value+=outposts*0.8f;
+    value+=rook_on_open_files*0.8f;
+    value+=unstoppable_pawn*1.f;
+    value+=king_attack*1.0f;
+    value+=passed_pawn*1.0f;
 
-    //draws from material insufficiency
-    //unstoppable pawn
 
-    value+=material*1.f;
-    value+=psqt*1.0f;
-    value+=mobility*2.f;
-    value+=hanging*2.f;
-    value+=king_safety*1.f;
-    value+=tempo*1.f;
-    value+=seventh*1.f;
-    value+=protect*1.f;
+
     return static_cast<int>(value)*side_multiplier[pos.turn()];
 }
 
