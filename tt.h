@@ -24,7 +24,7 @@ public:
         cells.resize(size);
     }
     void clear() {std::ranges::fill(cells,ENTRY());}
-    ENTRY operator[](const uint64_t idx) const {return cells[idx%size];}
+    ENTRY &operator[](const uint64_t idx) {return cells[idx%size];}
 
 };
 

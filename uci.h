@@ -49,7 +49,6 @@ inline void watch_input() {
                 tt.clear();
                 for (int n=0;n<3;n++) {for (int m=0;m<MAX_DEPTH;m++) {killer_moves[n][m]=libchess::Move();}}
                 for (int n=0;n<6;n++) {for (int m=0;m<64;m++) {countermove_history[n][m]=libchess::Move();}}
-                for (int n=0;n<6;n++) {for (int m=0;m<64;m++) {followup_history[n][m]=libchess::Move();}}
                 for (int n=0;n<64;n++) {for (int m=0;m<64;m++) {history[n][m]=0;}}
             }
             else if (line=="isready") {
@@ -127,6 +126,7 @@ inline void uci(const int &depth_limit=MAX_DEPTH) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     if (t.joinable()) t.join();
+    if (l.joinable()) l.join();
 }
 
 #endif // CHESSBOT_UCI_H

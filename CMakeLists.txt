@@ -52,6 +52,10 @@ add_library(
         search.h
         tt.h
         eval_tuner.h
+        perft.h
+        random.h
+        move_ordering_debugging.h
+        insufficient_material.h
 )
 # Add the static library
 add_library(

@@ -5,9 +5,6 @@
 #include "search.h"
 #include "libchess/position.hpp"
 
-inline std::mt19937 gen(std::random_device{}());
-inline std::uniform_int_distribution<int> dist(0,1000);
-
 struct root_return {
     std::string best_move;
     int score;
@@ -15,7 +12,6 @@ struct root_return {
     uint64_t nodes;
     std::vector<libchess::Move> pv;
 };
-
 inline root_return root(libchess::Position pos,const int time_limit,const int depth_max=MAX_DEPTH,const bool verbose=false) {
     if (pos.is_terminal()){return {"0000",-BOUND,0,0ull,{libchess::Move()}};}
     const auto t0=std::chrono::high_resolution_clock::now();
@@ -72,6 +68,10 @@ inline root_return root(libchess::Position pos,const int time_limit,const int de
                 pv=child.pv;
             }
             scores[m]=-child.value;
+            if (scores[m]>BOUND-MAX_DEPTH) {
+                _=true;
+                break;
+            }
             if (verbose){std::cout<<"depth:"<<d<<"|move:"<<legal_moves[m]<<"|value:"<<-child.value<<"|nodes:"<<child.nodes<<"\n";}
         }
         if (_){break;}
@@ -89,6 +89,7 @@ inline root_return root(libchess::Position pos,const int time_limit,const int de
         last=best;
         last_move=best_move;
     }
+
     //always return the last best move rather than the best move from an incomplete search
     //ensure castling is handled in uci format
     const libchess::Move move=last_move;

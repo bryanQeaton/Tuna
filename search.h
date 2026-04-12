@@ -17,8 +17,6 @@ inline float beta_cutoff_count=0.f;
 //tables and data
 inline libchess::Move killer_moves[3][MAX_DEPTH];
 inline libchess::Move countermove_history[6][64];
-inline libchess::Move followup_history[6][64];
-inline int capture_history[6][64];
 inline int history[64][64]={};
 inline TT tt(HASH_SIZE);
 //static exchange evaluator
@@ -56,9 +54,10 @@ struct nodeData {
     std::vector<libchess::Move> pv{};
 };
 
-
+inline bool use_nn=false;
 inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int depth_to_root,std::vector<libchess::Move> &move_history) {
     mo_nodes++;
+    if (pos.threefold()||pos.fiftymoves()){return {DRAW_SCORE+depth_to_root,1ull,depth_to_root,move_history};} //return because draw
     const int stand_pat=eval(pos);
     if (depth_to_root>=MAX_DEPTH){return {stand_pat,1ull,depth_to_root,move_history};} //return eval
     if (search.load(std::memory_order_relaxed)==-1) return {ABORT_SCORE,1ull,depth_to_root,move_history};
@@ -69,16 +68,7 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
     const uint64_t hash=pos.hash();
     ENTRY entry;
     entry=tt[hash];
-
     if (entry.hash==hash) {
-        //when calling tt
-        //return move_history+stored_pv
-        auto returned_pv=move_history;
-        returned_pv.insert(returned_pv.end(),entry.pv.begin(),entry.pv.end());
-        if (entry.flag==0){return {entry.value,1ull,entry.depth_to_root,returned_pv};}
-        if (entry.flag==-1&&entry.value>=beta){return {entry.value,1ull,entry.depth_to_root,returned_pv};}
-        if (entry.flag==1&&entry.value<=alpha){return {entry.value,1ull,entry.depth_to_root,returned_pv};}
-        //if (alpha>=beta){return {entry.value,1ull,entry.depth_to_root,move_history};}
         best_move=entry.best_move;
     }
     //mate distance pruning
@@ -102,7 +92,6 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
         legal_moves=pos.legal_moves();
         if (pos.in_check()&&legal_moves.empty()){return {-(BOUND-depth_to_root),1ull,depth_to_root,move_history};}
     }
-    if (pos.threefold()||pos.fiftymoves()){return {DRAW_SCORE+depth_to_root,1ull,depth_to_root,move_history};} //return because draw
     nodeData child;
     uint64_t nodes=0ull;
     std::vector<libchess::Move> pv;
@@ -110,8 +99,7 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
     for (int m=0;m<static_cast<int>(legal_moves.size());m++) {
         if (legal_moves[m]==best_move){scores[m]+=1000000;}
         const int s=see(pos,legal_moves[m].to(),legal_moves[m]);
-        if (s<-100){scores[m]+=s-10000;}
-        else {scores[m]+=s+10000;}
+        scores[m]+=s;
     }
     for (int m=0;m<static_cast<int>(legal_moves.size());m++) { //iterate over moves
         int best_value=-BOUND;
@@ -132,7 +120,7 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
         //pvs
         if (m==0) {child=quiescence(pos,-beta,-alpha,depth_to_root+1,move_history);}
         else {
-            if (scores[m]<-10000) { //prune bad see values
+            if (scores[m]<-100) { //prune bad see values
                 pos.undomove();
                 move_history.pop_back();
                 continue;
@@ -151,8 +139,6 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
         move_history.pop_back();
         if (value>alpha) {
             if (value>=beta) {
-                beta_cutoff_ratio+=(static_cast<float>(m)/static_cast<float>(legal_moves.size()));
-                beta_cutoff_count++;
                 break;
             }
             alpha=value;
@@ -176,6 +162,7 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
 }
 
 inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, const int depth_to_root,std::vector<libchess::Move> &move_history,const bool is_null,int reductions=0) {
+    if (pos.threefold()||pos.fiftymoves()){return {DRAW_SCORE+depth_to_root,1ull,depth_to_root,move_history};}
     if (depth<=0) {
         //return {eval(pos),1ull,depth_to_root,move_history};
         const nodeData node=quiescence(pos,alpha,beta,depth_to_root,move_history);
@@ -190,7 +177,7 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
     const uint64_t hash=pos.hash();
     ENTRY entry=tt[hash];
     if (entry.hash==hash) {
-        if (entry.depth>=depth&&!entry.quies_node) {
+        if (entry.depth>=depth&&!entry.quies_node&&depth_to_root!=0) {
             //when calling tt
             //return move_history+stored_pv
             auto returned_pv=move_history;
@@ -200,29 +187,28 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
             if (entry.flag==1&&entry.value<=alpha){return {entry.value,1ull,entry.depth_to_root,returned_pv};}
         }
         best_move=entry.best_move;
-        depth+=1;
     }
     //mate distance pruning
     alpha=std::max(-BOUND+depth_to_root, alpha);
     beta=std::min(BOUND-depth_to_root-1,beta);
     if (alpha>=beta){return {alpha,1ull,depth_to_root,move_history};}
     // //rfp
-    // if (!is_pv&&!pos.in_check()&&(best_move!=libchess::Move()||best_move.is_capturing())&&eval(pos)>=beta+150*depth) {
-    //     //return {eval(pos),1ull,depth_to_root,move_history};
-    //     const nodeData node=quiescence(pos,alpha,beta,depth_to_root,move_history);
-    //     return {node.value,node.nodes,node.depth,node.pv};
-    // }
-    // //nmp
-    // if (!is_pv&&!pos.in_check()&&!is_null&&eval(pos)>=beta&&phase(pos)>.2) {
-    //     pos.makenull();
-    //     move_history.emplace_back();
-    //     auto child=negamax(pos,-beta,-beta+1,depth-(depth/4)-1,depth_to_root+1,move_history,true,reductions);
-    //     pos.undonull();
-    //     move_history.pop_back();
-    //     if (-child.value>=beta){return {-child.value,1ull,depth_to_root,move_history};}
-    // }
-
-
+    if (!is_pv&&!pos.in_check()&&eval(pos)>=beta+150*depth) {
+        //return {eval(pos),1ull,depth_to_root,move_history};
+        const nodeData node=quiescence(pos,alpha,beta,depth_to_root,move_history);
+        return {node.value,node.nodes,node.depth,node.pv};
+    }
+    //nmp
+    if (!pos.in_check()&&!is_null&&eval(pos)>=beta&&phase(pos)>.2) {
+        pos.makenull();
+        move_history.emplace_back();
+        auto child=negamax(pos,-beta,-beta+1,depth-(depth/3)-2,depth_to_root+1,move_history,true,reductions);
+        pos.undonull();
+        move_history.pop_back();
+        if (-child.value>=beta) {
+            return {-child.value,1ull,depth_to_root,move_history};
+        }
+    }
     //try best_move
     if (best_move!=libchess::Move()) {
         pos.makemove(best_move);
@@ -236,14 +222,12 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
             }
         }
     }
-
     auto legal_moves=pos.legal_moves(); //generate legal moves
     const bool check=pos.in_check();
     if (legal_moves.empty()) { //if no moves then
         if (check){return {-(BOUND-depth_to_root),1ull,depth_to_root,move_history};} //return because checkmate
         return {DRAW_SCORE+depth_to_root,1ull,depth_to_root,move_history}; //return because draw
     }
-    if (pos.threefold()||pos.fiftymoves()){return {DRAW_SCORE+depth_to_root,1ull,depth_to_root,move_history};}
     std::vector<libchess::Move> pv;
     int value=-BOUND;
     nodeData child;
@@ -257,11 +241,6 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
         if (!move_history.empty()) {
             //countermove
             scores[m]+=(countermove_history[move_history.back().piece()][sqr_idx(move_history.back().to())]==legal_moves[m])*1000;
-            //recapture
-            scores[m]+=(move_history.back().to()==legal_moves[m].to())*100;
-            if (move_history.size()>=2) {
-                scores[m]+=(followup_history[move_history[move_history.size()-2].piece()][sqr_idx(move_history[move_history.size()-2].to())]==legal_moves[m])*1000;
-            }
         }
         //pawns
         if (legal_moves[m].piece()==0&&legal_moves[m].to().rank()>=4&&pos.turn()==libchess::White) {
@@ -321,8 +300,9 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
         scores[m]+=(killer_moves[2][depth_to_root]==legal_moves[m])*500;
         //mvv-lva
         if (legal_moves[m].is_capturing()) {
-            scores[m]=(mat[legal_moves[m].captured()]*10-mat[legal_moves[m].piece()])*100000;
+            scores[m]+=(mat[legal_moves[m].captured()]*10-mat[legal_moves[m].piece()])*100000;
         }
+        scores[m]+=(legal_moves[m].piece()==libchess::Pawn)*100;
         scores[m]+=100000*(legal_moves[m].type()==libchess::MoveType::promo);
         scores[m]+=5000*(legal_moves[m].type()==libchess::MoveType::ksc);
         scores[m]+=5000*(legal_moves[m].type()==libchess::MoveType::qsc);
@@ -351,7 +331,14 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
         //pv and castling
         //pv and promoting
         libchess::MoveType type=legal_moves[m].type();
-        if (check||(is_pv&&(type==4||type==5||legal_moves[m].is_promoting()))) {
+        if (check||
+            (is_pv&&
+                (type==4||type==5||
+                    legal_moves[m].is_promoting()||
+                    (legal_moves[m].is_capturing()&&legal_moves[m].captured()>legal_moves[m].piece())
+                )
+            )
+            ) {
             ext=1;
         }
         if (m==0) {
@@ -360,7 +347,16 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
         else {
             int lmr=0;
             lmr=1+static_cast<int>((log(m)*log(depth)));
-            if (is_pv||legal_moves[m].is_capturing()||legal_moves[m].is_promoting()){lmr=1;}
+            if (m>6){lmr+=1;}
+            if (m>12){lmr+=1;}
+            if (is_pv||legal_moves[m].is_capturing()||
+                legal_moves[m].is_promoting()||
+                killer_moves[0][depth_to_root]==legal_moves[m]||
+                killer_moves[1][depth_to_root]==legal_moves[m]||
+                killer_moves[2][depth_to_root]==legal_moves[m]||
+                legal_moves[m].piece()==0){
+                lmr=1;
+                }
             if (ext){lmr=0;}
             child=negamax(pos,-(alpha+1),-alpha,depth-(1+lmr),depth_to_root+1,move_history,is_null,reductions);
             if (-child.value>alpha&&-child.value<beta) {
@@ -377,7 +373,6 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
         move_history.pop_back();
         const bool is_capture=legal_moves[m].is_capturing();
         if (value>alpha) { //a-b
-            if (legal_moves[m].is_capturing()){capture_history[legal_moves[m].piece()][sqr_idx(legal_moves[m].to())]=-child.value/100;}
             best_move=legal_moves[m];
             if (value>=beta) { //beta cutoff
                 beta_cutoff_ratio+=(static_cast<float>(m)/static_cast<float>(legal_moves.size()));
@@ -387,8 +382,6 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
                     history[sqr_idx(legal_moves[m].from())][sqr_idx(legal_moves[m].to())]+=depth*depth;
                     //countermove history
                     if (!move_history.empty()) {countermove_history[move_history.back().piece()][sqr_idx(move_history.back().to())]=legal_moves[m];}
-                    //follow up history
-                    if (move_history.size()>=2) {followup_history[move_history[move_history.size()-2].piece()][sqr_idx(move_history[move_history.size()-2].to())]=legal_moves[m];}
                     //killers
                     if (killer_moves[0][depth_to_root]!=legal_moves[m]){killer_moves[0][depth_to_root]=legal_moves[m];}
                     else if (killer_moves[1][depth_to_root]!=legal_moves[m]){killer_moves[1][depth_to_root]=legal_moves[m];}

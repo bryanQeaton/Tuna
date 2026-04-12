@@ -3,20 +3,33 @@
 #include <iostream>
 #include <libchess/position.hpp>
 #include <libchess/movegen.hpp>
-#include "params.h"
+#include <fstream>
 
-inline int flip(const int &idx) {return idx^56;}
-inline int other(const int &side){return side^1;}
+#include "insufficient_material.h"
+#include "params.h"
+#include "random.h"
 inline float phase(const libchess::Position &pos) {
     libchess::Bitboard occ=pos.occupied();
     occ^=pos.occupancy(libchess::Pawn); //pawns dont count towards the phase of the game, endgames can be all pawns.
     occ^=pos.occupancy(libchess::King); //kings dont count towards the phase, they cannot be removed.
     return static_cast<float>(occ.count())/14.f;
 }
+inline int flip(const int &idx) {return idx^56;}
+inline int other(const int &side){return side^1;}
+inline float distance(const libchess::Square a,const libchess::Square b) {return static_cast<float>(std::max(abs(a.file()-b.file()),abs(a.rank()-b.rank())));}
 
-inline float distance(const libchess::Square a,const libchess::Square b) {return std::max(abs(a.file()-b.file()),abs(a.rank()-b.rank()));}
+inline int material_eval(const libchess::Position &pos) {
+    int value=0.f;
+    for (int side=0;side<2;side++) {
+        for (int p=0;p<5;p++) {
+            value+=mat[p]*pos.pieces(libchess::sides[side],libchess::pieces[p]).count()*side_multiplier[side];
+        }
+    }
+    return value;
+}
 
 inline int eval(const libchess::Position &pos) {
+    if (insufficient_material(pos)){return DRAW_SCORE;}
     float value=0.f;
     const float ph=phase(pos);
     //material:
@@ -32,7 +45,7 @@ inline int eval(const libchess::Position &pos) {
     for (int side=0;side<2;side++) {
         libchess::Bitboard side_occ=pos.occupancy(libchess::sides[side]);
         for (int p=0;p<6;p++) {
-            uint64_t occ=pos.occupancy(libchess::pieces[p]).operator&=(side_occ).value();
+            uint64_t occ=pos.occupancy(libchess::pieces[p]).operator&(side_occ).value();
             while (occ) {
                 int sqr=__builtin_ctzll(occ);
                 occ^=1ull<<sqr;
@@ -56,20 +69,6 @@ inline int eval(const libchess::Position &pos) {
     const auto b_rooks=pos.pieces(libchess::Black,libchess::Rook);
     const auto b_queens=pos.pieces(libchess::Black,libchess::Queen);
     const auto b_occ=b_pawns|b_knights|b_bishops|b_rooks|b_queens|pos.king_position(libchess::Black);
-    libchess::Bitboard w_greater[5]={
-        w_knights|w_bishops|w_rooks|w_queens,
-        w_rooks|w_queens,
-        w_rooks|w_queens,
-        w_queens,
-        libchess::Bitboard(0ull)
-    };
-    libchess::Bitboard b_greater[5]={
-        b_knights|b_bishops|b_rooks|b_queens,
-        b_rooks|b_queens,
-        b_rooks|b_queens,
-        b_queens,
-        libchess::Bitboard(0ull)
-    };
     libchess::Bitboard w_knight_att;
     libchess::Bitboard w_bishop_att;
     libchess::Bitboard w_rook_att;
@@ -122,18 +121,32 @@ inline int eval(const libchess::Position &pos) {
         b_queen_att|=libchess::movegen::queen_moves(fr,~pos.empty());
         b_sqrs_attacked|=b_queen_att;
     }
+    libchess::Bitboard w_greater[5]={
+        w_knights|w_bishops|w_rooks|w_queens,
+        w_rooks|w_queens,
+        w_rooks|w_queens,
+        w_queens,
+        libchess::Bitboard(0ull)
+    };
+    libchess::Bitboard b_greater[5]={
+        b_knights|b_bishops|b_rooks|b_queens,
+        b_rooks|b_queens,
+        b_rooks|b_queens,
+        b_queens,
+        libchess::Bitboard(0ull)
+    };
+    libchess::Bitboard b_lesser_att[6]={libchess::Bitboard(0),b_pawn_att,b_pawn_att,(b_pawn_att|b_knight_att|b_bishop_att),(b_pawn_att|b_knight_att|b_bishop_att|b_rook_att),libchess::Bitboard(0)};
+    libchess::Bitboard w_lesser_att[6]={libchess::Bitboard(0),w_pawn_att,w_pawn_att,(w_pawn_att|w_knight_att|w_bishop_att),(w_pawn_att|w_knight_att|w_bishop_att|w_rook_att),libchess::Bitboard(0)};
     //bonus for mobility -not including king or pawns:
     float mobility=0.f;
-    libchess::Bitboard w_att_by_lesser[6]={libchess::Bitboard(0),b_pawn_att,b_pawn_att,(b_pawn_att|b_knight_att|b_bishop_att),(b_pawn_att|b_knight_att|b_bishop_att|b_rook_att),libchess::Bitboard(0)};
-    libchess::Bitboard b_att_by_lesser[6]={libchess::Bitboard(0),w_pawn_att,w_pawn_att,(w_pawn_att|w_knight_att|w_bishop_att),(w_pawn_att|w_knight_att|w_bishop_att|w_rook_att),libchess::Bitboard(0)};
-    mobility+=knight_mobility[std::max((w_knight_att&~w_att_by_lesser[1]&~w_occ).count(),8)];
-    mobility+=bishop_mobility[std::max((w_bishop_att&~w_att_by_lesser[1]&~w_occ).count(),26)];
-    mobility+=rook_mobility[std::max((w_rook_att&~w_att_by_lesser[1]&~w_occ).count(),28)];
-    mobility+=queen_mobility[std::max((w_queen_att&~w_att_by_lesser[1]&~w_occ).count(),27)];
-    mobility-=knight_mobility[std::max((b_knight_att&~b_att_by_lesser[1]&~b_occ).count(),8)];
-    mobility-=bishop_mobility[std::max((b_bishop_att&~b_att_by_lesser[1]&~b_occ).count(),26)];
-    mobility-=rook_mobility[std::max((b_rook_att&~b_att_by_lesser[1]&~b_occ).count(),28)];
-    mobility-=queen_mobility[std::max((b_queen_att&~b_att_by_lesser[1]&~b_occ).count(),27)];
+    mobility+=knight_mobility[std::min((w_knight_att&~b_lesser_att[1]&~w_occ).count(),8)];
+    mobility+=bishop_mobility[std::min((w_bishop_att&~b_lesser_att[1]&~w_occ).count(),26)];
+    mobility+=rook_mobility[std::min((w_rook_att&~b_lesser_att[1]&~w_occ).count(),28)];
+    mobility+=queen_mobility[std::min((w_queen_att&~b_lesser_att[1]&~w_occ).count(),27)];
+    mobility-=knight_mobility[std::min((b_knight_att&~w_lesser_att[1]&~b_occ).count(),8)];
+    mobility-=bishop_mobility[std::min((b_bishop_att&~w_lesser_att[1]&~b_occ).count(),26)];
+    mobility-=rook_mobility[std::min((b_rook_att&~w_lesser_att[1]&~b_occ).count(),28)];
+    mobility-=queen_mobility[std::min((b_queen_att&~w_lesser_att[1]&~b_occ).count(),27)];
     float bishop_pairs=0.f;
     if (w_bishops.count()>=2){bishop_pairs+=50.f;}
     if (b_bishops.count()>=2){bishop_pairs-=50.f;}
@@ -148,7 +161,7 @@ inline int eval(const libchess::Position &pos) {
         mask|=mask.north();
         mask|=mask.north();
         mask|=mask.north();
-        if (mask&b_pawns){continue;} //not defendable by pawns
+        if (mask&b_pawn_att){continue;} //not defendable by pawns
         outposts+=10.f;
         if (sqr&w_knights){outposts+=145.f;}
         if (sqr&w_bishops){outposts+=145.f;}
@@ -165,7 +178,7 @@ inline int eval(const libchess::Position &pos) {
         mask|=mask.north();
         mask|=mask.north();
         mask|=mask.north();
-        if (mask&w_pawns){continue;} //not defendable by pawns
+        if (sqr&w_pawn_att){continue;} //not defendable by pawns
         outposts-=10.f;
         if (sqr&b_knights){outposts-=145.f;}
         if (sqr&b_bishops){outposts-=145.f;}
@@ -185,10 +198,10 @@ inline int eval(const libchess::Position &pos) {
             b_semi_open_files|=file;
         }
     }
-    if ((w_rook_att&open_files).count()>=3){rook_on_open_files+=80.f;}
-    if ((w_rook_att&w_semi_open_files).count()>=3){rook_on_open_files+=50.f;}
-    if ((b_rook_att&open_files).count()>=3){rook_on_open_files-=80.f;}
-    if ((b_rook_att&b_semi_open_files).count()>=3){rook_on_open_files-=50.f;}
+    if ((w_rooks&open_files)){rook_on_open_files+=80.f;}
+    if ((w_rooks&w_semi_open_files)){rook_on_open_files+=50.f;}
+    if ((b_rooks&open_files)){rook_on_open_files-=80.f;}
+    if ((b_rooks&b_semi_open_files)){rook_on_open_files-=50.f;}
     float unstoppable_pawn=0.f;
     auto w_passed=pos.passed_pawns(libchess::White);
     auto b_passed=pos.passed_pawns(libchess::Black);
@@ -245,27 +258,22 @@ inline int eval(const libchess::Position &pos) {
     float king_attack=0.f;
     auto w_king_area_immediate=libchess::Bitboard(pos.king_position(libchess::White)).adjacent();
     auto b_king_area_immediate=libchess::Bitboard(pos.king_position(libchess::Black)).adjacent();
-    float w_king_immediate_attack=static_cast<float>((b_king_area_immediate&(w_sqrs_attacked|w_occ)).count())/static_cast<float>(b_king_area_immediate.count());
-    float b_king_immediate_attack=static_cast<float>((w_king_area_immediate&(b_sqrs_attacked|b_occ)).count())/static_cast<float>(w_king_area_immediate.count());
+    float w_king_immediate_attack=static_cast<float>((b_king_area_immediate&w_sqrs_attacked).count())/static_cast<float>(b_king_area_immediate.count());
+    float b_king_immediate_attack=static_cast<float>((w_king_area_immediate&b_sqrs_attacked).count())/static_cast<float>(w_king_area_immediate.count());
     king_attack+=expf(w_king_immediate_attack*3)*10;
     king_attack-=expf(b_king_immediate_attack*3)*10;
     float passed_pawn=0.f;
-    passed_pawn+=pos.passed_pawns(libchess::White).count()*50.f;
-    passed_pawn-=pos.passed_pawns(libchess::Black).count()*50.f;
-
-    
+    passed_pawn+=static_cast<float>(pos.passed_pawns(libchess::White).count())*50.f;
+    passed_pawn-=static_cast<float>(pos.passed_pawns(libchess::Black).count())*50.f;
     value+=material*1.0f;
     value+=psqt*0.5f;
-    value+=mobility*0.5f;
+    value+=mobility*0.8f;
     value+=bishop_pairs*1.8f;
-    value+=outposts*0.8f;
+    value+=outposts*0.5f;
     value+=rook_on_open_files*0.8f;
-    value+=unstoppable_pawn*1.f;
+    value+=unstoppable_pawn*0.6f;
     value+=king_attack*1.0f;
     value+=passed_pawn*1.0f;
-
-
-
     return static_cast<int>(value)*side_multiplier[pos.turn()];
 }
 
