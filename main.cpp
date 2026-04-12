@@ -7,8 +7,9 @@
 
 int main() {
     pos=libchess::Position("startpos");
-    //auto result=root(pos,1000,MAX_DEPTH,true);
-    tune(50);
+    //auto result=root(pos,100,MAX_DEPTH,true);
+    //std::cout<<result.depth;
+    //tune(5);
 
 
 

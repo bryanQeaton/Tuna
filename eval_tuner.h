@@ -7,6 +7,8 @@
 #include <random>
 #include <iostream>
 #include <iomanip>
+
+#include "params.h"
 #include "random.h"
 
 
@@ -21,12 +23,19 @@ inline float sig(const float evaluation) {
 }
 inline void display_params() {
     std::cout<<"==================================\n";
+    std::cout<<"inline float eval_coefs[8]={";
+    for (int i=0;i<8;i++) {
+        std::cout<<std::fixed<<std::setprecision(1)<<eval_coefs[i];
+        if (i<7){std::cout<<",";}
+        else {std::cout<<"};\n";}
+    }
     std::cout<<"inline float mg_value[6]={";
     for (int i=0;i<6;i++) {
         std::cout<<std::fixed<<std::setprecision(1)<<mg_value[i];
         if (i<5){std::cout<<",";}
         else {std::cout<<"};\n";}
     }
+
     std::cout<<"inline float eg_value[6]={";
     for (int i=0;i<6;i++) {
         std::cout<<std::fixed<<std::setprecision(1)<<eg_value[i];
@@ -158,12 +167,12 @@ inline float match(const int games,const int move_time,const float *nudges) {
             bool is_pertrubed=false;
             if (position.turn()==libchess::White) {
                 is_pertrubed=true;
-                for (int i=0;i<64;i++) {mg_rook_table[i]+=nudges[i];}
+                for (int i=0;i<8;i++) {eval_coefs[i]+=nudges[i];}
             }
             auto move=root(position,move_time,MAX_DEPTH).best_move;
             position.makemove(move);
             if (is_pertrubed) {
-                for (int i=0;i<64;i++) {mg_rook_table[i]-=nudges[i];}
+                for (int i=0;i<8;i++) {eval_coefs[i]-=nudges[i];}
 
             }
         }
@@ -176,11 +185,15 @@ inline float match(const int games,const int move_time,const float *nudges) {
 
 inline void tune(const int samples) {
     for (int i=0;i<samples;i++) {
-        float nudges[64]{};
-        for (auto &n:nudges){n=real_dist(gen)*10.f;}
-        float result=match(3,25,nudges);
+        float nudges[8]{};
+        for (auto &n:nudges){n=random_sign()*.5f;}
+        float result=match(1,50,nudges);
+        result=result*2-1;
         std::cout<<result<<"\n";
-        if (result>.5f) {for (int i=0;i<64;i++) {mg_rook_table[i]+=nudges[i];}}
+        for (int n=0;n<8;n++) {nudges[n]=result/nudges[n];}
+        for (int n=0;n<8;n++) {eval_coefs[n]-=nudges[n]*.1;}
+
+        //if (result>.5f) {for (int n=0;n<8;n++) {eval_coefs[n]+=nudges[n];}}
     }
     display_params();
 }

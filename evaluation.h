@@ -266,14 +266,14 @@ inline int eval(const libchess::Position &pos) {
     passed_pawn+=static_cast<float>(pos.passed_pawns(libchess::White).count())*50.f;
     passed_pawn-=static_cast<float>(pos.passed_pawns(libchess::Black).count())*50.f;
     value+=material*1.0f;
-    value+=psqt*0.5f;
-    value+=mobility*0.8f;
-    value+=bishop_pairs*1.8f;
-    value+=outposts*0.5f;
-    value+=rook_on_open_files*0.8f;
-    value+=unstoppable_pawn*0.6f;
-    value+=king_attack*1.0f;
-    value+=passed_pawn*1.0f;
+    value+=psqt*eval_coefs[0];
+    value+=mobility*eval_coefs[1];
+    value+=bishop_pairs*eval_coefs[2];
+    value+=outposts*eval_coefs[3];
+    value+=rook_on_open_files*eval_coefs[4];
+    value+=unstoppable_pawn*eval_coefs[5];
+    value+=king_attack*eval_coefs[6];
+    value+=passed_pawn*eval_coefs[7];
     return static_cast<int>(value)*side_multiplier[pos.turn()];
 }
 
