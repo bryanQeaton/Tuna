@@ -52,18 +52,16 @@ struct nodeData {
     int value=-BOUND;
     uint64_t nodes=0ull;
     int depth=0;
-    std::vector<libchess::Move> pv{};
 };
 
 inline bool use_nn=false;
 inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int depth_to_root,std::vector<libchess::Move> &move_history) {
     mo_nodes++;
-    if (pos.threefold()||pos.fiftymoves()){return {DRAW_SCORE+depth_to_root,1ull,depth_to_root,move_history};} //return because draw
+    if (pos.threefold()||pos.fiftymoves()){return {DRAW_SCORE+depth_to_root,1ull,depth_to_root};} //return because draw
     const int stand_pat=eval(pos);
-    if (depth_to_root>=MAX_DEPTH){return {stand_pat,1ull,depth_to_root,move_history};} //return eval
-    if (search.load(std::memory_order_relaxed)==-1) return {ABORT_SCORE,1ull,depth_to_root,move_history};
+    if (depth_to_root>=MAX_DEPTH){return {stand_pat,1ull,depth_to_root};} //return eval
+    if (search.load(std::memory_order_relaxed)==-1) return {ABORT_SCORE,1ull,depth_to_root};
     //tt
-    const bool is_pv=(beta-alpha)>1;
     const int alph_orig=alpha;
     libchess::Move best_move={};
     const uint64_t hash=pos.hash();
@@ -75,7 +73,7 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
     //mate distance pruning
     alpha=std::max(-BOUND+depth_to_root, alpha);
     beta=std::min(BOUND-depth_to_root-1,beta);
-    if (alpha>=beta){return {alpha,1ull,depth_to_root,move_history};}
+    if (alpha>=beta){return {alpha,1ull,depth_to_root};}
 
     //standing pat
     int value=-BOUND;
@@ -84,7 +82,7 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
         value=stand_pat;
         if (value>alpha) {
             if (value>=beta) {
-                return {value,1ull,depth_to_root,move_history};
+                return {value,1ull,depth_to_root};
             }
             alpha=value;
         }
@@ -92,11 +90,10 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
     }
     else {
         legal_moves=pos.legal_moves();
-        if (pos.in_check()&&legal_moves.empty()){return {-(BOUND-depth_to_root),1ull,depth_to_root,move_history};}
+        if (pos.in_check()&&legal_moves.empty()){return {-(BOUND-depth_to_root),1ull,depth_to_root};}
     }
     nodeData child;
     uint64_t nodes=0ull;
-    std::vector<libchess::Move> pv;
     std::vector<int> scores(legal_moves.size());
     for (int m=0;m<static_cast<int>(legal_moves.size());m++) {
         if (legal_moves[m]==best_move){scores[m]+=1000000;}
@@ -134,8 +131,6 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
         if (-child.value>value) {
             value=-child.value;
             best_move=legal_moves[m];
-            pv=child.pv;
-
         }
         pos.undomove();
         move_history.pop_back();
@@ -146,32 +141,28 @@ inline nodeData quiescence(libchess::Position &pos,int alpha,int beta, const int
             alpha=value;
         }
     }
-    if (legal_moves.empty()){pv=move_history;}
     //tt
     entry.value=value;
     entry.hash=hash;
     entry.best_move=best_move;
     entry.depth_to_root=depth_to_root;
     entry.quies_node=true;
-    auto stored_pv=pv;
-    int remove = std::min(depth_to_root, static_cast<int>(stored_pv.size()));
-    stored_pv.erase(stored_pv.begin(), stored_pv.begin() + remove);
     if (value<=alph_orig) {entry.flag=1;}
     else if (value>=beta) {entry.flag=-1;}
     else{entry.flag=0;}
     tt[hash]=entry;
-    return {value,nodes,depth_to_root,pv};
+    return {value,nodes,depth_to_root};
 }
 
-inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, const int depth_to_root,std::vector<libchess::Move> &move_history,const bool is_null,int reductions=0) {
-    if (pos.threefold()||pos.fiftymoves()){return {DRAW_SCORE+depth_to_root,1ull,depth_to_root,move_history};}
+inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, const int depth_to_root,std::vector<libchess::Move> &move_history,const bool is_null,bool is_reduced_search=false) {
+    if (pos.threefold()||pos.fiftymoves()){return {DRAW_SCORE+depth_to_root,1ull,depth_to_root};}
     if (depth<=0) {
         //return {eval(pos),1ull,depth_to_root,move_history};
         const nodeData node=quiescence(pos,alpha,beta,depth_to_root,move_history);
-        return {node.value,node.nodes,node.depth,node.pv};
+        return {node.value,node.nodes,node.depth};
     }
     mo_nodes++;
-    if (search.load(std::memory_order_relaxed)==-1) return {ABORT_SCORE,1ull,depth_to_root,move_history};
+    if (search.load(std::memory_order_relaxed)==-1) return {ABORT_SCORE,1ull,depth_to_root};
     //tt
     const bool is_pv=(beta-alpha)>1;
     const int alph_orig=alpha;
@@ -180,13 +171,9 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
     ENTRY entry=tt[hash];
     if (entry.hash==hash) {
         if (entry.depth>=depth&&!entry.quies_node&&depth_to_root!=0) {
-            //when calling tt
-            //return move_history+stored_pv
-            auto returned_pv=move_history;
-            returned_pv.insert(returned_pv.end(),entry.pv.begin(),entry.pv.end());
-            if (entry.flag==0){return {entry.value,1ull,entry.depth_to_root,returned_pv};}
-            if (entry.flag==-1&&entry.value>=beta){return {entry.value,1ull,entry.depth_to_root,returned_pv};}
-            if (entry.flag==1&&entry.value<=alpha){return {entry.value,1ull,entry.depth_to_root,returned_pv};}
+            if (entry.flag==0){return {entry.value,1ull,entry.depth_to_root};}
+            if (entry.flag==-1&&entry.value>=beta){return {entry.value,1ull,entry.depth_to_root};}
+            if (entry.flag==1&&entry.value<=alpha){return {entry.value,1ull,entry.depth_to_root};}
         }
         best_move=entry.best_move;
         //iir
@@ -195,63 +182,62 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
             if (depth<=0) {
                 //return {eval(pos),1ull,depth_to_root,move_history};
                 const nodeData node=quiescence(pos,alpha,beta,depth_to_root,move_history);
-                return {node.value,node.nodes,node.depth,node.pv};
+                return {node.value,node.nodes,node.depth};
             }
         }
     }
     //mate distance pruning
     alpha=std::max(-BOUND+depth_to_root, alpha);
     beta=std::min(BOUND-depth_to_root-1,beta);
-    if (alpha>=beta){return {alpha,1ull,depth_to_root,move_history};}
+    if (alpha>=beta){return {alpha,1ull,depth_to_root};}
     //used in pruning
     const int standing_pat=eval(pos);
+    const bool check=pos.in_check();
     //rfp
-    if (!is_pv&&!pos.in_check()&&standing_pat>=beta+150*depth) {
+    if (!is_pv&&!check&&standing_pat>=beta+150*depth) {
         //return {eval(pos),1ull,depth_to_root,move_history};
         const nodeData node=quiescence(pos,alpha,beta,depth_to_root,move_history);
-        return {node.value,node.nodes,node.depth,node.pv};
+        return {node.value,node.nodes,node.depth};
     }
     //nmp
-    if (!pos.in_check()&&!is_null&&standing_pat>=beta&&phase(pos)>.2) {
+    auto occ=pos.occupancy(pos.turn());
+    occ^=pos.pieces(pos.turn(),libchess::King);
+    occ^=pos.pieces(pos.turn(),libchess::Pawn);
+    const bool null_safe=occ.value()>0;
+    if (!check&&!is_null&&standing_pat>=beta-20*depth&&null_safe) {
         pos.makenull();
         move_history.emplace_back();
-        auto child=negamax(pos,-beta,-beta+1,depth-(depth/3)-2,depth_to_root+1,move_history,true,reductions);
+        auto child=negamax(pos,-beta,-beta+1,depth-(depth/3)-2,depth_to_root+1,move_history,true,is_reduced_search);
         pos.undonull();
         move_history.pop_back();
         if (-child.value>=beta) {
-            return {-child.value,1ull,depth_to_root,move_history};
+            return {-child.value,1ull,depth_to_root};
         }
     }
     //heurcut
-    if (!is_pv&&!is_null&&(standing_pat>=beta||standing_pat<alpha)) {
-        auto child=negamax(pos,alpha,alpha+1,depth-(depth/3)-2,depth_to_root+1,move_history,false,reductions);
-        if (child.value<=alpha) {
-            if (child.value<=-(BOUND-MAX_DEPTH)) { //confirmation search for mate values
-                child=negamax(pos,alpha,beta,depth-(depth/3)-2,depth_to_root+1,move_history,false,reductions);
-                return {child.value,child.nodes,child.depth,child.pv};
-            }
-            return {alpha,1ull,depth_to_root,move_history};
-        }
-        child=negamax(pos,beta-1,beta,depth-(depth/3)-2,depth_to_root+1,move_history,false,reductions);
+    if (!is_pv&&!is_null&&!is_reduced_search&&(standing_pat>=beta||standing_pat<alpha)&&depth>2) {
+        auto child=negamax(pos,beta-1,beta,depth-(depth/4)-2,depth_to_root+1,move_history,false,true);
         if (child.value>=beta){
             if (child.value>=BOUND-MAX_DEPTH) { //confirmation search for mate values
-                child=negamax(pos,alpha,beta,depth-(depth/3)-2,depth_to_root+1,move_history,false,reductions);
-                return {child.value,child.nodes,child.depth,child.pv};
+                child=negamax(pos,alpha,beta,depth-(depth/3)-2,depth_to_root+1,move_history,false,is_reduced_search);
+                return {child.value,child.nodes,child.depth};
             }
-            return {alpha,1ull,depth_to_root,move_history};
-            /*
-                as I understand it, returning alpha instead of beta here requires the engine to do a research when this value
-                is returned, which means more nodes are searched but to balance it out this prunes more subtrees.
-            */
+            return {alpha,child.nodes,child.depth};
+        }
+        child=negamax(pos,alpha,alpha+1,depth-(depth/4)-2,depth_to_root+1,move_history,false,true);
+        if (child.value<=alpha) {
+            if (child.value<=-(BOUND-MAX_DEPTH)) { //confirmation search for mate values
+                child=negamax(pos,alpha,beta,depth-(depth/3)-2,depth_to_root+1,move_history,false,is_reduced_search);
+                return {child.value,child.nodes,child.depth};
+            }
+            return {alpha,child.nodes,child.depth};
         }
     }
     auto legal_moves=pos.legal_moves(); //generate legal moves
-    const bool check=pos.in_check();
     if (legal_moves.empty()) { //if no moves then
-        if (check){return {-(BOUND-depth_to_root),1ull,depth_to_root,move_history};} //return because checkmate
-        return {DRAW_SCORE+depth_to_root,1ull,depth_to_root,move_history}; //return because draw
+        if (check){return {-(BOUND-depth_to_root),1ull,depth_to_root};} //return because checkmate
+        return {DRAW_SCORE+depth_to_root,1ull,depth_to_root}; //return because draw
     }
-    std::vector<libchess::Move> pv;
     int value=-BOUND;
     nodeData child;
     uint64_t nodes=0ull;
@@ -367,7 +353,7 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
             ext=1;
         }
         if (m==0) {
-            child=negamax(pos,-beta,-alpha,depth-1+ext,depth_to_root+1,move_history,is_null,reductions);
+            child=negamax(pos,-beta,-alpha,depth-1+ext,depth_to_root+1,move_history,is_null,is_reduced_search);
         }
         else {
             int lmr=0;
@@ -384,9 +370,9 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
                 lmr=1;
                 }
             if (ext){lmr=0;}
-            child=negamax(pos,-(alpha+1),-alpha,depth-(1+lmr),depth_to_root+1,move_history,is_null,reductions);
+            child=negamax(pos,-(alpha+1),-alpha,depth-(1+lmr),depth_to_root+1,move_history,is_null,is_reduced_search);
             if (-child.value>alpha&&is_pv) {
-                child=negamax(pos,-beta,-alpha,depth-1+ext,depth_to_root+1,move_history,is_null,reductions);
+                child=negamax(pos,-beta,-alpha,depth-1+ext,depth_to_root+1,move_history,is_null,is_reduced_search);
             }
         }
         pos.undomove(); //undo move
@@ -396,7 +382,6 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
             value=-child.value;
             best_move=legal_moves[m];
             if (!move_history.empty()&&move_history.back()==libchess::Move()) {null_move_refutation[pos.turn()]=legal_moves[m];}
-            pv=child.pv;
         }
         const bool is_capture=legal_moves[m].is_capturing();
         if (value>alpha) { //a-b
@@ -421,22 +406,20 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
         }
     }
     //tt
-    entry.value=value;
-    entry.hash=hash;
-    entry.best_move=best_move;
-    entry.depth_to_root=depth_to_root;
-    auto stored_pv=pv;
-    int remove=std::min(depth_to_root,static_cast<int>(stored_pv.size()));
-    stored_pv.erase(stored_pv.begin(),stored_pv.begin()+remove);
-    if (value<=alph_orig) {entry.flag=1;}
-    else if (value>=beta) {entry.flag=-1;}
-    else{entry.flag=0;}
+
     if (depth>entry.depth||entry.quies_node) { //depth based replacement scheme
+        entry.value=value;
+        entry.hash=hash;
+        entry.best_move=best_move;
+        entry.depth_to_root=depth_to_root;
+        if (value<=alph_orig) {entry.flag=1;}
+        else if (value>=beta) {entry.flag=-1;}
+        else{entry.flag=0;}
         entry.depth=depth;
         entry.quies_node=false;
         tt[hash]=entry;
     }
-    return {value,nodes,depth_to_root,pv};
+    return {value,nodes,depth_to_root};
 }
 
 

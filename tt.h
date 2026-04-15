@@ -11,7 +11,6 @@ struct ENTRY {
     int depth_to_root=0;
     bool quies_node=false;
     libchess::Move best_move{};
-    std::vector<libchess::Move> pv;
 };
 class TT {
     std::vector<ENTRY> cells{};

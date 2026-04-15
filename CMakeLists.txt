@@ -56,6 +56,7 @@ add_library(
         random.h
         move_ordering_debugging.h
         insufficient_material.h
+        iccplayer.h
 )
 # Add the static library
 add_library(

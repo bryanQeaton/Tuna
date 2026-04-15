@@ -15,8 +15,9 @@ struct root_return {
 inline root_return root(libchess::Position pos,const int time_limit,const int depth_max=MAX_DEPTH,const bool verbose=false) {
     if (pos.is_terminal()){return {"0000",-BOUND,0,0ull,{libchess::Move()}};}
     const auto t0=std::chrono::high_resolution_clock::now();
+    int stand_pat=eval(pos);
     std::vector<libchess::Move> legal_moves=pos.legal_moves();
-    std::vector scores(legal_moves.size(),0);
+    std::vector scores(legal_moves.size(),stand_pat);
     std::vector<size_t> indices(legal_moves.size());
     nodeData best={-BOUND,0,{}};
     nodeData last;
@@ -35,7 +36,7 @@ inline root_return root(libchess::Position pos,const int time_limit,const int de
         }
         int alph=-BOUND;
         int beta=BOUND;
-        for (int m=0;m<legal_moves.size();m++) {
+        for (size_t m=0;m<legal_moves.size();m++) {
             indices[m]=m;
             pos.makemove(legal_moves[m]);
             std::vector move_history={legal_moves[m]};
