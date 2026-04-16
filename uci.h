@@ -117,9 +117,7 @@ inline void uci(const int &depth_limit=MAX_DEPTH) {
             }
             auto local_pos =pos;
             auto ret=root(local_pos,time_limit,depth_limit);
-            std::cout<<"info depth "<<ret.depth<<" score cp "<<ret.score<<" nodes "<<ret.nodes<<" nps "<<(static_cast<float>(ret.nodes)/static_cast<float>(time_limit))*1000.f<<" ";
-            for (const auto &move:ret.pv) {std::cout<<move<<" ";}
-            std::cout<<"\n"<<std::flush;;
+            std::cout<<"info depth "<<ret.depth<<" score cp "<<ret.score<<" nodes "<<ret.nodes<<" nps "<<(static_cast<float>(ret.nodes)/static_cast<float>(time_limit))*1000.f<<"\n"<<std::flush;
             std::cout<<"bestmove "<<ret.best_move<<"\n"<<std::flush;
             search=0;
         }

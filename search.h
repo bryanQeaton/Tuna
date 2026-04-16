@@ -194,11 +194,11 @@ inline nodeData negamax(libchess::Position &pos,int alpha,int beta,int depth, co
     const int standing_pat=eval(pos);
     const bool check=pos.in_check();
     //rfp
-    if (!is_pv&&!check&&standing_pat>=beta+150*depth) {
-        //return {eval(pos),1ull,depth_to_root,move_history};
-        const nodeData node=quiescence(pos,alpha,beta,depth_to_root,move_history);
-        return {node.value,node.nodes,node.depth};
-    }
+    // if (!is_pv&&!check&&standing_pat>=beta+150*depth) {
+    //     //return {eval(pos),1ull,depth_to_root,move_history};
+    //     const nodeData node=quiescence(pos,alpha,beta,depth_to_root,move_history);
+    //     return {node.value,node.nodes,node.depth};
+    // }
     //nmp
     auto occ=pos.occupancy(pos.turn());
     occ^=pos.pieces(pos.turn(),libchess::King);

@@ -10,10 +10,9 @@ struct root_return {
     int score;
     int depth;
     uint64_t nodes;
-    std::vector<libchess::Move> pv;
 };
 inline root_return root(libchess::Position pos,const int time_limit,const int depth_max=MAX_DEPTH,const bool verbose=false) {
-    if (pos.is_terminal()){return {"0000",-BOUND,0,0ull,{libchess::Move()}};}
+    if (pos.is_terminal()){return {"0000",-BOUND,0,0ull};}
     const auto t0=std::chrono::high_resolution_clock::now();
     int stand_pat=eval(pos);
     std::vector<libchess::Move> legal_moves=pos.legal_moves();
@@ -24,15 +23,12 @@ inline root_return root(libchess::Position pos,const int time_limit,const int de
     libchess::Move best_move=legal_moves[0];
     libchess::Move last_move=best_move;
     uint64_t nodes=0;
-    std::vector<libchess::Move> pv;
     for (int d=0;d<=depth_max;d++) {
-        best={-BOUND,0,0,{legal_moves[0]}};
+        best={-BOUND,0,0};
         last.depth=d;
         bool _=false;
         if (verbose) {
-            std::cout<<"=============best:"<<last_move<<"|nodes:"<<nodes<<"\npv:";
-            for (auto &n:pv) {std::cout<<n<<" ";}
-            std::cout<<"\n";
+            std::cout<<"=============best:"<<last_move<<"|nodes:"<<nodes<<"\n";
         }
         int alph=-BOUND;
         int beta=BOUND;
@@ -66,7 +62,6 @@ inline root_return root(libchess::Position pos,const int time_limit,const int de
                     last=best;
                     last_move=best_move;
                 }
-                pv=child.pv;
             }
             scores[m]=-child.value;
             if (scores[m]>BOUND-MAX_DEPTH) {
@@ -95,11 +90,11 @@ inline root_return root(libchess::Position pos,const int time_limit,const int de
     //ensure castling is handled in uci format
     const libchess::Move move=last_move;
     const int value=last.value;
-    if (move.type()==libchess::ksc&&pos.turn()==libchess::White){return {"e1g1",value,last.depth,nodes,last.pv};}
-    if (move.type()==libchess::qsc&&pos.turn()==libchess::White){return {"e1c1",value,last.depth,nodes,last.pv};}
-    if (move.type()==libchess::ksc&&pos.turn()==libchess::Black){return {"e8g8",value,last.depth,nodes,last.pv};}
-    if (move.type()==libchess::qsc&&pos.turn()==libchess::Black){return {"e8c8",value,last.depth,nodes,last.pv};}
-    return {move,value,last.depth,nodes,last.pv};
+    if (move.type()==libchess::ksc&&pos.turn()==libchess::White){return {"e1g1",value,last.depth,nodes};}
+    if (move.type()==libchess::qsc&&pos.turn()==libchess::White){return {"e1c1",value,last.depth,nodes};}
+    if (move.type()==libchess::ksc&&pos.turn()==libchess::Black){return {"e8g8",value,last.depth,nodes};}
+    if (move.type()==libchess::qsc&&pos.turn()==libchess::Black){return {"e8c8",value,last.depth,nodes};}
+    return {move,value,last.depth,nodes};
 }
 
 #endif //CHESSBOT_ROOT_H
